@@ -1,0 +1,114 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description:
+  This script build an EC2 instances
+Parameters:
+  KeyName:
+    Description: Key Pair Name
+    Type: AWS::EC2::KeyPair::KeyName
+  PublicSubnetID:
+    Description: Id of public subnet
+    Type: String
+  InstanceType:
+    Description: Webserver EC2 Instance Type
+    Type: String
+    Default: t2.small
+    AllowedValues: [t2.nano, t2.micro, t2.small, t2.medium, t2.large]
+    ConstraintDescription: must be a valid EC2 instance type.
+  InstanceSecurityGroupID:
+    Type: String
+    Description: ID of the instance security group
+  BastionHostSecurityGroupID:
+    Type: String
+    Description: SG ID for Bastion Host
+  IamInstanceProfileID:
+    Type: String
+    Description: ID of instance profile
+  DBEndpoint:
+    Type: String
+    Description: URL of DB instance
+  DBUsername:
+    Type: String
+    Description: Db username
+  DBName:
+    Type: String
+    Description: DB name
+  DBPassword:
+    Type: String
+    Description: DB password
+Mappings:
+  AWSRegion2AMI:
+    us-east-1: 
+      AmazonLinux: ami-8c1be5f6
+    eu-west-1:
+      AmazonLinux: ami-acd005d5
+    eu-central-1: 
+      AmazonLinux: ami-c7ee5ca8
+    eu-west-2: 
+      AmazonLinux: ami-1a7f6d7e
+Resources:
+  BastionHost:
+    Type: AWS::EC2::Instance
+    Properties:
+      KeyName: !Ref KeyName
+      InstanceType: !Ref InstanceType
+      ImageId: !FindInMap [AWSRegion2AMI, !Ref "AWS::Region", "AmazonLinux"]
+      SecurityGroupIds: 
+      - !Ref BastionHostSecurityGroupID
+      BlockDeviceMappings:
+        - DeviceName: /dev/sdb
+          Ebs:
+            VolumeType: "gp2"
+            DeleteOnTermination: false
+            VolumeSize: "20"
+      SubnetId: !Ref PublicSubnetID
+      Tags:
+      - Key: Name
+        Value: !Sub |
+          ${AWS::StackName} Bastion Host
+  WebHost:
+    Type: AWS::EC2::Instance
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: "PT5M"
+    Properties:
+      KeyName: !Ref KeyName
+      InstanceType: !Ref InstanceType
+      ImageId: !FindInMap [AWSRegion2AMI, !Ref "AWS::Region", "AmazonLinux"]
+      IamInstanceProfile: !Ref IamInstanceProfileID
+      SecurityGroupIds:
+      - !Ref InstanceSecurityGroupID
+      BlockDeviceMappings:
+        - DeviceName: /dev/sdc
+          Ebs:
+            VolumeType: "gp2"
+            DeleteOnTermination: false
+            VolumeSize: "20"
+      SubnetId: !Ref PublicSubnetID
+      UserData:
+        Fn::Base64: !Sub | 
+          #!/bin/bash
+          yum update -y
+          yum update aws-cfn-bootstrap -y
+          yum install httpd -y
+          yum install php php-mysql -y
+          touch /var/www/html/health.html
+          echo "ok" > /var/www/html/health.html
+          touch /var/www/html/check.php
+          echo "<?php mysql_connect('${DBEndpoint}', '${DBUsername}', '${DBPassword}'); print('Connected');mysql_close();" > /var/www/html/process.php
+          service httpd start
+          chkconfig httpd on
+          /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource WebHost --region ${AWS::Region}
+      Tags:
+      - Key: Name
+        Value: !Sub |
+          ${AWS::StackName} Web Instance
+Outputs:
+  BastionHostIP:
+    Value: !GetAtt BastionHost.PublicIp
+  WebHostIP:
+    Value: !GetAtt WebHost.PublicIp
+  WebHostDNS:
+    Value: !GetAtt WebHost.PublicDnsName
+
+
+
