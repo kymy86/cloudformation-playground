@@ -7,7 +7,7 @@ Parameters:
   DBInstanceClass:
     Type: String
     Description: Instance class
-    Default: db.m4.large
+    Default: db.m5.large
   AllocatedStorage:
     Type: String
     Description: Storage allocated for this instance
@@ -21,6 +21,7 @@ Parameters:
     Type: String
     Description: Master DB Password
     MinLength: "6"
+    NoEcho: true
   DBSecurityGroupID:
     Type: String
     Description: Security group for DB instance
@@ -49,7 +50,7 @@ Resources:
       DBInstanceClass: !Ref DBInstanceClass
       Engine: MariaDB
       EngineVersion: "10.0.24"
-      StorageType: gp2
+      StorageType: gp3
       MasterUsername: !Ref DBUsername
       MasterUserPassword: !Ref DBPassword
       DBSubnetGroupName: !Ref DBSubnetGroup

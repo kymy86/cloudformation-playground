@@ -29,9 +29,6 @@ Parameters:
   DBUsername:
     Type: String
     Description: Db username
-  DBName:
-    Type: String
-    Description: DB name
   DBPassword:
     Type: String
     Description: DB password
